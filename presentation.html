@@ -15,6 +15,30 @@
         font-weight: normal;
       }
       .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+
+      #wrap {
+        height: 100%;
+        padding: 0;
+        overflow: hidden;
+		margin: auto;
+      }
+      #scaled-frame {
+        width: 1400px;
+        height: 900px;
+        border: 0px;
+        zoom: 0.5;
+        -moz-transform: scale(0.5);
+        -moz-transform-origin: 0 0;
+        -o-transform: scale(0.5);
+        -o-transform-origin: 0 0;
+        -webkit-transform: scale(0.5);
+        -webkit-transform-origin: 0 0;
+      }
+      @media screen and (-webkit-min-device-pixel-ratio:0) {
+        #scaled-frame {
+          zoom: 1;
+        }
+      }
     </style>
   </head>
   <body>
@@ -30,49 +54,168 @@ Lee Johnson (CPAN: LEEJO / github: leejo)
 
 ???
 
-Warning! Possibly hand wavy in parts
-
-My C is very rusty (although it seems people *want* rust rather than C these days?)
-
-The perl internals are very deep, my knowledge of those internals is not deep
-
-This is just the basics
-
 ---
 
 ## GivenGain?
 
-???
-
+--
 * Non-profit foundation, since 2001 (Perl, CGI)
 
+--
+* One of the first crowdfunding platforms on the web
+
+--
 * Simplified the platform over the years
 
-* 
+--
+* Rewritten to Mojolicious/Moose/DBIx::Class in 2014/2015
+
+--
+* Events are a recent feature on the platform
+
+---
+
+<img width=750px src="img/boston_126.png" />
+
+---
+
+## 2020 ...
+
+--
+* Lockdowns
+
+--
+* [Virtual events](https://www.givengain.com/e/vhi-virtual-event/) became a thing
+
+--
+* Streaming became [much more popular](https://twitchtracker.com/statistics):
+
+<img width=750px src="img/twitch.png" />
+
+???
 
 ---
 
 ## Twitch?
 
+--
+* Livestreaming!
+
+--
+* Often gaming content
+
+--
+* Streams can go on for hours
+
+--
+* Some are like modern day Telethons
+
+--
+* They want tools to visualise fundraising progress and goals
+
 ???
 
 
 ---
 
-## Spot the bug
+## [Widgets!](https://www.givengain.com/widget/livestream/stats_widget?initiative_id=2550)
 
-```perl
-use strict;
-use warnings;
-```
+<div id="wrap">
+<iframe
+	id="scaled-frame"
+	src="https://www.givengain.com/widget/livestream/stats_widget?initiative_id=2550"
+	title="126th Boston Marathon"
+	scrolling="no"
+></iframe>
+</div>
 
 ???
 
-Notes
+---
+
+## [More Widgets!](https://www.givengain.com/widget/livestream/donation_alert?initiative_id=2550)
+
+<div id="wrap">
+<iframe
+	id="scaled-frame"
+	src="https://www.givengain.com/widget/livestream/donation_alert?initiative_id=2550"
+	title="126th Boston Marathon"
+	scrolling="no"
+></iframe>
+</div>
+
+---
+
+## Not Just For Livestreaming
+
+<img width=600px src="img/boston_widgets.jpg" />
+
+---
+
+## How Does This All Work?
+
+Essentially:
+
+--
+* Browser connects to Mojolicious server (via load balancer)
+
+--
+* Connection is upgraded to a websocket
+
+--
+* Mojolicious opens a consumer connection to RabbitMQ
+
+--
+* Messages (elsewhere) are pushed to the message queue
+
+--
+* Consumer websocket receives the JSON message payload
+
+--
+* HTML DOM dynamically updated to reflect message content
+
+???
+
+The key thing is
+
+--
+* No refresh of the page required
+
+---
+
+## Browser
+
+
+---
+
+## Mojolicious
+
 
 ---
 
 ## RabbitMQ?
+
+--
+* Message broker we're using in various systems (async jobs, batch processing, etc)
+
+
+--
+* Traditionally:
+ * Messages are delivered to a queue
+ * One queue can have many consumers bound to it
+ * **Each message is delivered to one (and only one) consumer**
+ * Allows massively parallel processing
+
+???
+
+sending emails, generating PDFs, running reports, etc
+
+--
+
+* With livestreaming widgets:
+ * Messages are delivered to a "fanout" exchange
+ * One exchange can have many consumers bound to it
+ * **Each message is delivered to every consumer bound to the exchange**
 
 
 ???
@@ -85,12 +228,23 @@ More info:
 
 * [Net::AMQP::RabbitMQ::PP](https://metacpan.org/pod/Net::AMQP::RabbitMQ::PP)
 
+<div id="wrap">
+<iframe
+	id="scaled-frame"
+	src="https://www.givengain.com/widget/livestream/donation_alert?initiative_id=2550"
+	title="126th Boston Marathon"
+	scrolling="no"
+></iframe>
+</div>
+
+
     </textarea>
     <script src="https://remarkjs.com/downloads/remark-latest.min.js" type="text/javascript">
     </script>
     <script type="text/javascript">
         var slideshow = remark.create({
-            highlightLines: true
+            highlightLines: true,
+            slideNumberFormat: ''
         });
     </script>
   </body>
