@@ -16,6 +16,12 @@
       }
       .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
 
+      #video {
+        width: 40%;
+        padding: 0;
+        overflow: hidden;
+		margin: auto;
+      }
       #wrap {
         height: 100%;
         padding: 0;
@@ -46,7 +52,7 @@
 
 class: center, middle
 
-## Satisfying a Twitch<br />Livestreaming Widgets at GivenGain
+## Satisfying a Twitch<br />Livestreaming Widgets at [GivenGain](https://www.givengain.com)
 
 ![card](img/card.jpg)
 
@@ -59,13 +65,21 @@ Lee Johnson (CPAN: LEEJO / github: leejo)
 ## GivenGain?
 
 --
-* Non-profit foundation, since 2001 (Perl, CGI)
+* Non-profit foundation, since 2001
+
+???
+
+Allows charities anywhere in the world to accept donations from anywhere in the world
 
 --
 * One of the first crowdfunding platforms on the web
 
 --
-* Simplified the platform over the years
+* Simplified the platform over the years, heavily CGI.pm based
+
+???
+
+Used to have things like CMS, blogging, hosting, etc
 
 --
 * Rewritten to Mojolicious/Moose/DBIx::Class in 2014/2015
@@ -73,13 +87,27 @@ Lee Johnson (CPAN: LEEJO / github: leejo)
 --
 * Events are a recent feature on the platform
 
+???
+
+Added in 2018
+
 ---
 
+## [Events](https://www.givengain.com/e/126th-boston-marathon/)
+
 <img width=750px src="img/boston_126.png" />
+
+???
+
+Describe how events work
 
 ---
 
 ## 2020 ...
+
+???
+
+Then 2020 happened
 
 --
 * Lockdowns
@@ -131,6 +159,8 @@ Lee Johnson (CPAN: LEEJO / github: leejo)
 
 ???
 
+This is a general overview of an event, the totals here will update dynamically
+
 ---
 
 ## [More Widgets!](https://www.givengain.com/widget/livestream/donation_alert?initiative_id=2550)
@@ -144,11 +174,41 @@ Lee Johnson (CPAN: LEEJO / github: leejo)
 ></iframe>
 </div>
 
+???
+
+This one (which may currently be a blank page) is for individual donations, and can be used in livestreams
+
+Maybe. if. i. talk. slow. enough. a. donation. might. appear...
+
+---
+
+## [Our Beta Tester](https://www.givengain.com/ap/grant-hinds-raising-funds-for-new-hope-sa-36848/)
+
+<div id="video">
+<video
+	height="400"
+	controls
+>
+<source src="video/Grant_Hinds.mp4" type="video/mp4">
+Your browser does not support the video tag.
+</video> 
+</div>
+
+???
+
+Grant Hinds.
+
+ZA based streamer who helped us test the first release of the livestreaming widget(s), which have changed a little since then
+
 ---
 
 ## Not Just For Livestreaming
 
 <img width=600px src="img/boston_widgets.jpg" />
+
+???
+
+Using them at the Boston Marathon last year to show running totals.
 
 ---
 
@@ -185,11 +245,106 @@ The key thing is
 
 ## Browser
 
+* https://www.givengain.com/widget/livestream/donation_alert?initiative_id=2550
+
+--
+* Some HTML and JavaScript, opens wss://www.givengain.com/ws/donation_alert/initiative/2550
+
+--
+* Reads the returned JSON to update the DOM for each message received
+
+--
+
+```
+$ wscat --connect wss://www.givengain.com/ws/donation_alert/initiative/2550
+
+Connected (press CTRL+C to quit)
+
+<   {
+	"currency":{"code":"USD","symbol":"US$"},
+	"donation_amount":"60",
+	"donor_image":"/content_members/images/profiles/423845-BQMJDU_144x144.jpg",
+	"donor_name":"John Smith",
+	"entity":null,
+	"id":null,
+	"message":"You are amazing and truly inspirational ❤️ -I’m proud of you!"
+	}
+
+```
 
 ---
 
 ## Mojolicious
 
+---
+
+## Mojolicious
+
+```perl
+# ->recurring returns an identifier we can use to remove it later.
+# 3 seconds seems a reasonable amount of time to loop here - we
+# need a balance between an "immediate" update and not putting too
+# much load on the server (imagine if we have thousands of these?)
+*$ioloop = Mojo::IOLoop->recurring( 3 => sub {
+
+    if ( $RabbitMQ->mq->is_connected ) {
+
+        # -1 on recv for non-blocking, we can't block here as it
+        # would defeat the object of doing event looping
+        while ( my $message = $RabbitMQ->mq->recv(-1) ) {
+            my $ws_message = $c->_get_ws_message_from_body(
+                $widget_type, $message, $entity_type, $entity
+            );
+            $c->send( $json_encoder->encode( $ws_message ) ) if $ws_message;
+        }
+    } else {
+        $c->app->log->debug( "not connected to queue" );
+    }
+} );
+
+Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+```
+
+???
+
+note comment about 3 seconds
+
+---
+
+## Mojolicious
+
+```perl
+# ->recurring returns an identifier we can use to remove it later.
+# 3 seconds seems a reasonable amount of time to loop here - we
+# need a balance between an "immediate" update and not putting too
+# much load on the server (imagine if we have thousands of these?)
+$ioloop = Mojo::IOLoop->recurring( 3 => sub {
+
+    if ( $RabbitMQ->mq->is_connected ) {
+
+*        # -1 on recv for non-blocking, we can't block here as it
+*        # would defeat the object of doing event looping
+*        while ( my $message = $RabbitMQ->mq->recv(-1) ) {
+            my $ws_message = $c->_get_ws_message_from_body(
+                $widget_type, $message, $entity_type, $entity
+            );
+            $c->send( $json_encoder->encode( $ws_message ) ) if $ws_message;
+        }
+    } else {
+        $c->app->log->debug( "not connected to queue" );
+    }
+} );
+
+Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+```
+
+???
+
+note -1 recv for non-blocking
+
+if we get a message we send it up the websocket
+
+then we repeat the IOLoop
 
 ---
 
@@ -198,27 +353,113 @@ The key thing is
 --
 * Message broker we're using in various systems (async jobs, batch processing, etc)
 
-
---
-* Traditionally:
- * Messages are delivered to a queue
- * One queue can have many consumers bound to it
- * **Each message is delivered to one (and only one) consumer**
- * Allows massively parallel processing
-
 ???
 
 sending emails, generating PDFs, running reports, etc
 
 --
+* Traditionally:
+ * Messages are delivered to queues on a topic exchange via routing keys
+ * One queue can have many consumers bound to it
+ * **Each message is consumed by one (and only one) consumer**
+ * Allows massively parallel processing
+
+--
 
 * With livestreaming widgets:
  * Messages are delivered to a "fanout" exchange
- * One exchange can have many consumers bound to it
- * **Each message is delivered to every consumer bound to the exchange**
-
+ * One exchange can have many queues bound to it
+ * **Each message is delivered to every queue bound to the exchange**
 
 ???
+
+Demonstrate differences using PROD monitoring graphs
+
+This is an entire talk itself, I won't go into the detail too much
+
+--
+
+* Using Net::AMQP::RabbitMQ with our own shim
+
+???
+
+The shim just sets up the connection/queues/exchanges/etc
+
+---
+
+## RabbitMQ?
+
+```perl
+sub publish {
+    my ($self, $payload, $queue, $routing_key, $priority, $publish_props) = @_;
+
+    $publish_props //= {};
+
+    if ( $self->exchange_type eq 'fanout' ) {
+
+        # if fanout we just publish to an exchange and rabbitmq will
+        # push the messages onto every queue in the exchange
+        $self->mq->publish(
+            $self->channel,
+            $routing_key, # supplied but will be ignored
+            $payload,
+            {
+                # we're publising to an *exchange* here, not a queue and
+                # this is an important difference when calling ->publish
+                # as we *don't* bind to a queue first
+                exchange => $self->exchange,
+            },
+            $publish_props
+        );
+
+        ....
+    }
+
+    ...
+```
+
+???
+
+The shim here will DTRT depending on how the object was instantiated
+
+---
+
+## Lessons Learned / Gotchas?
+
+* Beware autoscailing
+
+???
+
+Probably your widget logic should include some reconnection handling
+
+--
+* RabbitMQ "just works"
+
+???
+
+but beware the high water marks
+
+--
+* We haven't really used this at scale yet
+
+--
+* Mojo::RabbitMQ::Client is broken:
+
+```
+commit 50788bc1b145c466ddcae14e2d1c90b8d7284d45
+Author: Lee Johnson <lee@givengain.ch>
+Date:   Tue Mar 24 14:25:03 2020 +0100
+
+    websockets + rabbitmq to update the donation widget
+
+    ...
+
+    note that we are using our own wrapper around RabbitMQ here (the model
+    class) combined to Mojo::IOLoop as attempting to use the
+    Mojo::RabbitMQ::Client module resulted in about 2 days of hacking and
+    frustration with no success - it appears to be broken and this was
+    confirmed by checking out the repo and trying the examples
+```
 
 ---
 
@@ -226,7 +467,9 @@ sending emails, generating PDFs, running reports, etc
 
 More info:
 
-* [Net::AMQP::RabbitMQ::PP](https://metacpan.org/pod/Net::AMQP::RabbitMQ::PP)
+* [Websockets](https://en.wikipedia.org/wiki/WebSocket)
+* [Mojo::IOLoop](https://metacpan.org/pod/Mojo::IOLoop)
+* [Net::AMQP::RabbitMQ](https://metacpan.org/pod/Net::AMQP::RabbitMQ)
 
 <div id="wrap">
 <iframe
