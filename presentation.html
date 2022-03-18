@@ -436,12 +436,14 @@ The shim here will DTRT depending on how the object was instantiated
 
 Probably your widget logic should include some reconnection handling
 
+Our loadbalancer proxies wss:// requests to a particular instance
+
 --
 * RabbitMQ "just works"
 
 ???
 
-but beware the high water marks
+but beware the high/low water marks
 
 --
 * We haven't really used this at scale yet
